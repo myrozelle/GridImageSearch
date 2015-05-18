@@ -25,9 +25,10 @@ Additional User Stories
 
 
 Walkthrough (with optional features)
+
 ![alt tag](walkthrough_V1.gif)
 
-
 Walkthrough (Basic)
+
 ![alt tag](walkthrough_V0.gif)
 
