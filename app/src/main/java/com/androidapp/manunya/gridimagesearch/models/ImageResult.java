@@ -14,6 +14,8 @@ public class ImageResult implements Serializable{
     public String fullUrl;
     public String thumbUrl;
     public String title;
+    public int tbWidth;
+    public int tbHeight;
     //private static final long
     // new ImageResult(...)
     public ImageResult(JSONObject json) {
@@ -21,6 +23,8 @@ public class ImageResult implements Serializable{
             this.fullUrl = json.getString("url");
             this.thumbUrl = json.getString("tbUrl");
             this.title = json.getString("title");
+            this.tbWidth = Integer.valueOf(json.getString("tbWidth"));
+            this.tbHeight = Integer.valueOf(json.getString("tbHeight"));
         } catch (JSONException e) {
             e.printStackTrace();
         }

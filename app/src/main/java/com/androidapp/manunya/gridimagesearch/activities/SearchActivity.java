@@ -1,21 +1,27 @@
 package com.androidapp.manunya.gridimagesearch.activities;
 
+import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.ActionBarActivity;
+import android.support.v7.widget.SearchView;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
-import android.widget.EditText;
-import android.widget.GridView;
+import android.widget.Toast;
 
-import com.androidapp.manunya.gridimagesearch.EndlessScrollListener;
 import com.androidapp.manunya.gridimagesearch.R;
 import com.androidapp.manunya.gridimagesearch.adapters.ImageResultsAdapter;
 import com.androidapp.manunya.gridimagesearch.models.ImageResult;
 import com.androidapp.manunya.gridimagesearch.models.SearchSetting;
+import com.androidapp.manunya.gridimagesearch.subclasses.EndlessScrollListener;
+import com.etsy.android.grid.StaggeredGridView;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.JsonHttpResponseHandler;
 
@@ -27,13 +33,16 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 
-public class SearchActivity extends ActionBarActivity {
-    private EditText etQuery;
-    private GridView gvResults;
+public class SearchActivity extends ActionBarActivity implements AdvancedSearchDialog.AdvancedSearchDialogListener{
+
+    private SearchView searchView;
+    private StaggeredGridView gvResults;
     private ArrayList<ImageResult> imageResults;
     protected ImageResultsAdapter aImageResults;
     private SearchSetting searchSetting;
-    private static final int REQUEST_CODE = 20;
+    //private static final int REQUEST_CODE = 20;
+    private static final int MAX_RESULTS = 64;
+    private boolean loading;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,8 +58,7 @@ public class SearchActivity extends ActionBarActivity {
 
 
     private void setupViews() {
-        etQuery = (EditText) findViewById(R.id.etQuery);
-        gvResults = (GridView) findViewById(R.id.gvResults);
+        gvResults = (StaggeredGridView) findViewById(R.id.gvResults);
         //set onclick to display each item's image
         gvResults.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
@@ -67,9 +75,12 @@ public class SearchActivity extends ActionBarActivity {
         gvResults.setOnScrollListener(new EndlessScrollListener() {
             @Override
             public void onLoadMore(int page, int totalItemsCount) {
-                //Toast.makeText(SearchActivity.this, page + ", " + totalItemsCount, Toast.LENGTH_SHORT).show();
-                String searchUrl = getSearchUrl(searchSetting, totalItemsCount);
-                loadDataFromApi(searchUrl);
+                Log.i("begin on load more: ", "page=" + page + ", totalItemsCount=" + totalItemsCount);
+                if (totalItemsCount < MAX_RESULTS) {
+                    String searchUrl = getSearchUrl(searchSetting, totalItemsCount);
+                    loadDataFromApi(searchUrl);
+                    aImageResults.notifyDataSetChanged();
+                }
             }
         });
     }
@@ -78,7 +89,29 @@ public class SearchActivity extends ActionBarActivity {
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_search, menu);
-        return true;
+        MenuItem searchItem = menu.findItem(R.id.action_search);
+        searchView = (SearchView) MenuItemCompat.getActionView(searchItem);
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                // perform query here
+                //Toast.makeText(SearchActivity.this, query, Toast.LENGTH_SHORT).show();
+                Log.i("query text submitted: ", query);
+                aImageResults.clear();
+                String searchUrl = getSearchUrl(searchSetting, 0);
+                loadDataFromApi(searchUrl);
+                // Super important! Need this so onQueryTextSubmit won't fire twice
+                searchView.clearFocus(); // http://stackoverflow.com/questions/17874951/searchview-onquerytextsubmit-runs-twice-while-i-pressed-once
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                return false;
+            }
+        });
+        return super.onCreateOptionsMenu(menu);
+
     }
 
     @Override
@@ -91,22 +124,25 @@ public class SearchActivity extends ActionBarActivity {
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
             //Toast.makeText(this, "settings!", Toast.LENGTH_SHORT).show();
-            Intent i = new Intent(SearchActivity.this, AdvancedSearchActivity.class);
+            // use dialog fragment instead
+            /*Intent i = new Intent(SearchActivity.this, AdvancedSearchActivity.class);
             i.putExtra("setting", searchSetting);
             startActivityForResult(i, REQUEST_CODE);
-            return true;
+            return true;*/
+            Log.i("adapter length", aImageResults.getCount() + "");
+            FragmentManager fm = getSupportFragmentManager();
+            AdvancedSearchDialog advancedSearchDialog = AdvancedSearchDialog.newInstance("Advanced filters", searchSetting);
+            advancedSearchDialog.show(fm, "dialog_advanced_search");
         }
 
         return super.onOptionsItemSelected(item);
     }
 
-    //Fire when the button is pressed
-    public void onImageSearch(View view) {
-        //imageResults.clear();//clear existing images from array
-        aImageResults.clear();
-        String searchUrl = getSearchUrl(searchSetting, 0);
-        loadDataFromApi(searchUrl);
+    @Override
+    public void onSaveAdvancedSearch(SearchSetting newSetting) {
+        searchSetting = newSetting;
     }
+
 
     private void loadDataFromApi(String searchUrl) {
         AsyncHttpClient client = new AsyncHttpClient();
@@ -128,13 +164,16 @@ public class SearchActivity extends ActionBarActivity {
 
             @Override
             public void onFailure(int statusCode, Header[] headers, String responseString, Throwable throwable) {
+                if (!isNetworkAvailable()) {
+                    Toast.makeText(SearchActivity.this, "Network is not available.", Toast.LENGTH_SHORT).show();
+                }
                 Log.d("load data failed: ", statusCode + " - " + responseString);
             }
         });
     }
 
-    private String getSearchUrl(SearchSetting searchSetting, int totalResCount) {
-        String query = etQuery.getText().toString();
+    private String getSearchUrl(SearchSetting searchSetting, int totalItemsCount) {
+        String query = searchView.getQuery().toString();
         String imageSizeSetting = "";
         String colorFilterSetting = "";
         String imageTypeSetting = "";
@@ -153,9 +192,8 @@ public class SearchActivity extends ActionBarActivity {
         if (SearchSetting.hasValue(searchSetting.getSiteFilter())) {
             siteFilterSetting = "&as_sitesearch=" + searchSetting.getSiteFilter();
         }
-        if (totalResCount > 0) {
-            startString = "&start=" + totalResCount;
-        }
+        startString = "&start=" + totalItemsCount;
+        Log.i("start at: ", startString);
         String searchUrl = "https://ajax.googleapis.com/ajax/services/search/images?v=1.0&q="
                 + query
                 + "&rsz=8"
@@ -164,11 +202,22 @@ public class SearchActivity extends ActionBarActivity {
                 + imageTypeSetting
                 + siteFilterSetting
                 + startString;
-
+        Log.i("search URL: ", searchUrl);
         return searchUrl;
     }
 
-    // HANDLE ALL FORM RESULTS
+    private Boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager
+                = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+        return activeNetworkInfo != null && activeNetworkInfo.isConnectedOrConnecting();
+    }
+
+
+
+
+    /*
+    // Handle Search setting results from advanced search activity
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         // check for request code
@@ -177,12 +226,8 @@ public class SearchActivity extends ActionBarActivity {
             if (resultCode == RESULT_OK) {
                 //extract result data
                 searchSetting = (SearchSetting) data.getSerializableExtra("setting");
-                /*Toast.makeText(this, searchSetting.getSize()
-                        + ", " + searchSetting.getColorFilter()
-                        + ", " + searchSetting.getType()
-                        + ", " + searchSetting.getSiteFilter(), Toast.LENGTH_SHORT).show();*/
             }
         }
 
-    }
+    }*/
 }

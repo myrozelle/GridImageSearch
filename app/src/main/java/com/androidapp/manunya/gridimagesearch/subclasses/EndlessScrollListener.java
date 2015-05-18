@@ -1,5 +1,6 @@
-package com.androidapp.manunya.gridimagesearch;
+package com.androidapp.manunya.gridimagesearch.subclasses;
 
+import android.util.Log;
 import android.widget.AbsListView;
 
 /**
@@ -8,7 +9,7 @@ import android.widget.AbsListView;
 public abstract class EndlessScrollListener implements AbsListView.OnScrollListener {
     // The minimum amount of items to have below your current scroll position
     // before loading more.
-    private int visibleThreshold = 5;
+    private int visibleThreshold = 3;
     // The current offset index of data you have loaded
     private int currentPage = 0;
     // The total number of items in the dataset after the last load
@@ -17,6 +18,8 @@ public abstract class EndlessScrollListener implements AbsListView.OnScrollListe
     private boolean loading = true;
     // Sets the starting page index
     private int startingPageIndex = 0;
+
+    private static final String TAG = "EndlessScrollListener";
 
     public EndlessScrollListener() {
     }
@@ -37,6 +40,10 @@ public abstract class EndlessScrollListener implements AbsListView.OnScrollListe
     @Override
     public void onScroll(AbsListView view,int firstVisibleItem,int visibleItemCount,int totalItemCount)
     {
+        Log.i(TAG, "onScroll firstVisibleItem:" + firstVisibleItem +
+                " visibleItemCount:" + visibleItemCount +
+                " totalItemCount:" + totalItemCount +
+                " loading:" + loading);
         // If the total item count is zero and the previous isn't, assume the
         // list is invalidated and should be reset back to initial state
         if (totalItemCount < previousTotalItemCount) {
@@ -44,7 +51,7 @@ public abstract class EndlessScrollListener implements AbsListView.OnScrollListe
             this.previousTotalItemCount = totalItemCount;
             if (totalItemCount == 0) { this.loading = true; }
         }
-        // If it’s still loading, we check to see if the dataset count has
+        // If itâ€™s still loading, we check to see if the dataset count has
         // changed, if so we conclude it has finished loading and update the current page
         // number and total item count.
         if (loading && (totalItemCount > previousTotalItemCount)) {
@@ -53,7 +60,7 @@ public abstract class EndlessScrollListener implements AbsListView.OnScrollListe
             currentPage++;
         }
 
-        // If it isn’t currently loading, we check to see if we have breached
+        // If it isnâ€™t currently loading, we check to see if we have breached
         // the visibleThreshold and need to reload more data.
         // If we do need to reload some more data, we execute onLoadMore to fetch the data.
         if (!loading && (totalItemCount - visibleItemCount)<=(firstVisibleItem + visibleThreshold)) {
@@ -68,5 +75,6 @@ public abstract class EndlessScrollListener implements AbsListView.OnScrollListe
     @Override
     public void onScrollStateChanged(AbsListView view, int scrollState) {
         // Don't take any action on changed
+        Log.i(TAG, "onScrollStateChanged:" + scrollState);
     }
 }
